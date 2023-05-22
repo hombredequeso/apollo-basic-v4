@@ -23,7 +23,7 @@ const typeDefs = `#graphql
   # clients can execute, along with the return type for each. In this
   # case, the "books" query returns an array of zero or more Books (defined above).
   type Query {
-    books: [Book!]!
+    books(ids: [String!]!): [Book!]!
     book(id: String): Book
   }
 `;
@@ -47,11 +47,11 @@ class BooksAPI extends RESTDataSource {
 
   // Create a data loader, which can aggregate requests for multiple id's and perform a single query.
   loader = new DataLoader(async (ids) => {
-    // pretend that we send the id's here as a parameter, ?ids=123,456 (but my fake api doens't work)
-    // But this is where the actual request(s) are made:
-    const bookList = await this.get('bookIds');     
-    var result = ids.map((id) => bookList.find((book) => book.id === id));
-    // console.log(JSON.stringify(result));
+    // Where the actual request(s) are made:
+    const url = `book?ids=${ids.join(',')}`;
+    const bookList = await this.get(url);     
+    var result = ids.map((id) => bookList.find((book) => book?.id === id));
+    // result MUST be in same order and indexes as ids.
     return result;
   });
 
@@ -61,14 +61,10 @@ class BooksAPI extends RESTDataSource {
     return this.loader.load(id);
   }
 
-  async getAllBooks(ids) {
+  async getBooks(ids) {
     // Go via the loader...
     return this.loader.loadMany(ids);
   }
-
-  // async getBooks() {
-  //   return this.get('books');
-  // }
 }
 
 function sleep(ms) {
@@ -77,16 +73,18 @@ function sleep(ms) {
 
 const resolvers = {
   Query: {
-    // books: (parent, args, {dataSources}) => dataSources.booksAPI.getBooks(),
-    books: (parent, args, {dataSources}) => {
+    books: async (parent, {ids}, {dataSources}) => {
       console.log(`> query.books`)
-      var allBooksIds = ['123', '456'];
-      var result =  dataSources.booksAPI.getAllBooks(allBooksIds).then(books => [books[0]]);
-      console.log(`< query.books`)
-      return result;
-      // [{id: '123'}, {id: '456'}],
+      var booksFromApi =  await dataSources.booksAPI.getBooks(ids);
+      var bookIds = booksFromApi.filter(x => x !== undefined ).map(x => ({id: x.id}));
+      return bookIds;
     },
-    book: (parent, {id}, {dataSources}) => {id},
+    book: async (parent, {id}, {dataSources}) => {
+      // book is nullable, because the book with id may not exist. So getBook, to determine if it exists:
+      var booksResolverResult =  await sleep(1000).then(() => dataSources.booksAPI.getBook(id));
+      // var booksResolverResult =  await dataSources.booksAPI.getBook(id);
+      return (booksResolverResult === undefined)? null: {id};
+    }
   },
   Book: {
     title: async ({id}, args, {dataSources}, info) => {
@@ -94,17 +92,12 @@ const resolvers = {
       // const book = await sleep((id === '123')? 1000: 100).then(() => dataSources.booksAPI.getBook(id));
       const book = await dataSources.booksAPI.getBook(id);
       console.log(`< book.title: ${id}`)
-
-
-      // console.log({book});
       return book.title;
-      // dataSources.booksAPI.getBook(id).title;
     },
     author: async ({id}, args, {dataSources}, info) => {
       console.log(`> book.author: ${id}`)
       const book = await dataSources.booksAPI.getBook(id);
-      // const book = await sleep((id === '123')? 1000: 100).then(() => dataSources.booksAPI.getBook(id));
-      // const book = await sleep(1000).then(() => dataSources.booksAPI.getBook(id));
+      // const book = await sleep(5000).then(() => dataSources.booksAPI.getBook(id));
       console.log(`< book.author: ${id}`)
       return book.author;
     }

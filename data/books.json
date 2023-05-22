@@ -1,0 +1,17 @@
+{
+  "book/123": {
+    "id": "123",
+    "title": "The Awakening",
+    "author": "Kate Chopin"
+  },
+  "book/456": {
+    "id": "456",
+    "title": "City of Glass",
+    "author": "Paul Auster"
+  },
+  "book/789": {
+    "id": "789",
+    "title": "On First Principles",
+    "author": "Origen"
+  }
+}
