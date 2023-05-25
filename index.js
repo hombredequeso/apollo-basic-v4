@@ -62,6 +62,7 @@ class BooksAPI extends RESTDataSource {
   }
 
   async getBooks(ids) {
+    console.log(`getBooks(${ids})`);
     // Go via the loader...
     return this.loader.loadMany(ids);
   }
@@ -81,8 +82,8 @@ const resolvers = {
     },
     book: async (parent, {id}, {dataSources}) => {
       // book is nullable, because the book with id may not exist. So getBook, to determine if it exists:
-      var booksResolverResult =  await sleep(1000).then(() => dataSources.booksAPI.getBook(id));
-      // var booksResolverResult =  await dataSources.booksAPI.getBook(id);
+      // var booksResolverResult =  await sleep(1000).then(() => dataSources.booksAPI.getBook(id));
+      var booksResolverResult =  await dataSources.booksAPI.getBook(id);
       return (booksResolverResult === undefined)? null: {id};
     }
   },

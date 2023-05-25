@@ -3,16 +3,20 @@ Initially created following [Getting started with Apollo Server](https://www.apo
 
 # Getting Started (with Getting Started :-) )
 
+To run up the api and have it restart whenever files are edited:
 ```
 npm install
-npm start
+npm run start:dev
 ```
+
+
 
 Requires a book api to be running. See mock-crud-api.
 
 ```
 yarn start ./.data/books.json
 ```
+
 
 
 Making a request to the graph:
