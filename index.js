@@ -14,9 +14,14 @@ const typeDefs = `#graphql
 
   # This "Book" type defines the queryable fields for every book in our data source.
   type Book {
-    id: String
+    id: String!
     title: String
     author: String
+  }
+
+  type Author {
+    id: String!
+    name: String
   }
 
   # The "Query" type is special: it lists all of the available queries that
@@ -25,6 +30,7 @@ const typeDefs = `#graphql
   type Query {
     books(ids: [String!]!): [Book!]!
     book(id: String): Book
+    author(id: String): Author
   }
 `;
 
@@ -74,6 +80,13 @@ function sleep(ms) {
 
 const resolvers = {
   Query: {
+    author: async (parent, {id}, {dataSources}) => {
+      // if author does not exist return null, otherwise return something else.
+      console.log(`> query.author`);
+      // hit the api here and find out if the author exists...
+      return {id: id};
+      // return null;
+    },
     books: async (parent, {ids}, {dataSources}) => {
       console.log(`> query.books`)
       var booksFromApi =  await dataSources.booksAPI.getBooks(ids);
@@ -86,6 +99,23 @@ const resolvers = {
       var booksResolverResult =  await dataSources.booksAPI.getBook(id);
       return (booksResolverResult === undefined)? null: {id};
     }
+  },
+  Author: {
+    id: (parent, args, {dataSources}, info) => {
+      console.log(`> author.id`)
+      // pretend to do api requests
+      // ?????
+      return parent.id;
+
+      // const authorIdToGet = parent.authorIdFromQuery
+      // return `author-id-999`
+    },
+    name: (parent, args, {dataSources}, info) => {
+      console.log(`> author.name`)
+      // const authorIdToGet = parent.authorIdFromQuery
+      // pretend to do api requests
+      return `Name, Author # ${parent.id}`
+    },
   },
   Book: {
     title: async ({id}, args, {dataSources}, info) => {
