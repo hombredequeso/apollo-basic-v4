@@ -16,12 +16,19 @@ const typeDefs = `#graphql
   type Book {
     id: String!
     title: String
-    author: String
+    authorName: String
+    authorId: String!
+    authorDetails: Author
   }
 
   type Author {
     id: String!
-    name: String
+    name: String!
+  }
+
+  type Candidate {
+    bk: Book!
+    au: Author!
   }
 
   # The "Query" type is special: it lists all of the available queries that
@@ -31,6 +38,7 @@ const typeDefs = `#graphql
     books(ids: [String!]!): [Book!]!
     book(id: String): Book
     author(id: String): Author
+    viewer: Candidate
   }
 `;
 
@@ -98,7 +106,27 @@ const resolvers = {
       // var booksResolverResult =  await sleep(1000).then(() => dataSources.booksAPI.getBook(id));
       var booksResolverResult =  await dataSources.booksAPI.getBook(id);
       return (booksResolverResult === undefined)? null: {id};
+    },
+    viewer: () => {
+      console.log(`> query.viewer`)
+      return {};
     }
+
+  },
+  Candidate: {
+    bk: (parent, args, {dataSources}, info) => {
+      console.log(`> bk`)
+      return books[0];
+      // return null;
+    },
+    au: (parent, args, {dataSources}, info) => {
+      console.log(`> au`)
+      return null;
+      // return {
+      //   id: 'hacked-123',
+      //   name: 'Mark woz here'
+      // };
+    },
   },
   Author: {
     id: (parent, args, {dataSources}, info) => {
@@ -114,6 +142,13 @@ const resolvers = {
       console.log(`> author.name`)
       // const authorIdToGet = parent.authorIdFromQuery
       // pretend to do api requests
+      //
+
+
+      if (parent.id === 'author-2') {
+        throw {error: "something went wrong"};
+      }
+
       return `Name, Author # ${parent.id}`
     },
   },
@@ -125,13 +160,27 @@ const resolvers = {
       console.log(`< book.title: ${id}`)
       return book.title;
     },
-    author: async ({id}, args, {dataSources}, info) => {
+    authorName: async ({id}, args, {dataSources}, info) => {
       console.log(`> book.author: ${id}`)
       const book = await dataSources.booksAPI.getBook(id);
       // const book = await sleep(5000).then(() => dataSources.booksAPI.getBook(id));
       console.log(`< book.author: ${id}`)
       return book.author;
+    },
+    authorId: async ({id}, args, {dataSources}, info) => {
+      console.log(`> book.authorId: ${id}`)
+      const book = await dataSources.booksAPI.getBook(id);
+      // const book = await sleep(5000).then(() => dataSources.booksAPI.getBook(id));
+      console.log(`< book.authorId: ${id}`)
+      return book.authorId;
+    },
+    authorDetails: async({id}, args, cxt, info) => {
+      console.log(`> book.authorDetails: ${id}`)
+      const book = await cxt.dataSources.booksAPI.getBook(id);
+      console.log(`< book.authorDetails: ${id}`)
+      return {id: book.authorId};
     }
+    
   }
 };
 

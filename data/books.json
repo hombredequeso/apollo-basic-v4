@@ -2,16 +2,20 @@
   "book/123": {
     "id": "123",
     "title": "The Awakening",
-    "author": "Kate Chopin"
+    "author": "Kate Chopin",
+    "authorId": "author-1"
+
   },
   "book/456": {
     "id": "456",
     "title": "City of Glass",
-    "author": "Paul Auster"
+    "author": "Paul Auster",
+    "authorId": "author-2"
   },
   "book/789": {
     "id": "789",
     "title": "On First Principles",
-    "author": "Origen"
+    "author": "Origen",
+    "authorId": "author-3"
   }
 }
