@@ -31,6 +31,22 @@ const typeDefs = `#graphql
     au: Author!
   }
 
+  interface Entity {
+    id: String,
+    displayName: String
+  }
+
+  type Thing1 implements Entity {
+    id: String,
+    displayName: String
+    thing1Name: String
+  }
+  type Thing2 implements Entity {
+    id: String,
+    displayName: String
+    thing2Name: String
+  }
+
   # The "Query" type is special: it lists all of the available queries that
   # clients can execute, along with the return type for each. In this
   # case, the "books" query returns an array of zero or more Books (defined above).
@@ -39,6 +55,9 @@ const typeDefs = `#graphql
     book(id: String): Book
     author(id: String): Author
     viewer: Candidate
+    entities: [Entity]
+    aa: String
+    bb: String
   }
 `;
 
@@ -54,6 +73,19 @@ const books = [
     author: 'Paul Auster',
   },
 ];
+
+const entities = [
+  {
+    id: '111',
+    displayName: 'thing1:111',
+    thing1Name: 'thing1Name'
+  },
+  {
+    id: '222',
+    displayName: 'thing2:222',
+    thing2Name: 'thing2Name'
+  }
+]
 
 
 class BooksAPI extends RESTDataSource {
@@ -88,6 +120,8 @@ function sleep(ms) {
 
 const resolvers = {
   Query: {
+    aa: () => "aaa",
+    bb: () => { throw "something went wrong"; },
     author: async (parent, {id}, {dataSources}) => {
       // if author does not exist return null, otherwise return something else.
       console.log(`> query.author`);
@@ -110,8 +144,18 @@ const resolvers = {
     viewer: () => {
       console.log(`> query.viewer`)
       return {};
+    },
+    entities: () => entities
+  },
+  Entity: {
+    __resolveType(entity, context, info) {
+      if (entity.thing1Name !== undefined) {
+        return 'Thing1';
+      }
+      if (entity.thing2Name !== undefined) {
+        return 'Thing2';
+      }
     }
-
   },
   Candidate: {
     bk: (parent, args, {dataSources}, info) => {
