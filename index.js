@@ -5,12 +5,19 @@ import { RESTDataSource } from '@apollo/datasource-rest';
 
 import DataLoader from 'dataloader';
 
+import {parse, visit, print} from 'graphql';
+import {exec} from 'node:child_process';
+import fs from 'node:fs';
+
+
+
 
 // A schema is a collection of type definitions (hence "typeDefs")
 // that together define the "shape" of queries that are executed against
 // your data.
 const typeDefs = `#graphql
   # Comments in GraphQL strings (such as this one) start with the hash (#) symbol.
+
 
   # This "Book" type defines the queryable fields for every book in our data source.
   type Book {
@@ -19,6 +26,12 @@ const typeDefs = `#graphql
     authorName: String
     authorId: String!
     authorDetails: Author
+    biblioEntry(fmt: String): BiblioEntry
+  }
+
+  type BiblioEntry {
+    id: String!
+    entry: String
   }
 
   type Author {
@@ -31,18 +44,44 @@ const typeDefs = `#graphql
     au: Author!
   }
 
+  interface Experiment {
+    id: String
+    # json: JSON
+  }
+
+  type ExperimentWithNumberParameter implements Experiment {
+    id: String
+    # json: JSON
+    numberParam: Int
+  }
+
+  type ExperimentWithNumberParameter implements Experiment {
+    id: String
+    # json: JSON
+    booleanParam: Boolean
+  }
+
+
+  type ExperimentWithStandardParameters implements Experiment {
+    id: String
+    # json: JSON
+
+    knownParamName: String
+    # others here.
+  }
+
   interface Entity {
-    id: String,
+    id: String
     displayName: String
   }
 
   type Thing1 implements Entity {
-    id: String,
+    id: String
     displayName: String
     thing1Name: String
   }
   type Thing2 implements Entity {
-    id: String,
+    id: String
     displayName: String
     thing2Name: String
   }
@@ -51,16 +90,27 @@ const typeDefs = `#graphql
   # clients can execute, along with the return type for each. In this
   # case, the "books" query returns an array of zero or more Books (defined above).
   type Query {
+    version: String
     books(ids: [String!]!): [Book!]!
     book(id: String): Book
+    book2(id: String, other: String): Book
+    book3(other: String): Book
     author(id: String): Author
     viewer: Candidate
     entities: [Entity]
+    experiments(context: String): [Experiment]
     aa: String
-    bb: String
-  }
-`;
+    bb: String!
 
+    b1: Book!
+    b2: Book!
+  }
+
+  type Mutation {
+    createBook(id: ID!): Book!
+  }
+
+`;
 const books = [
   {
     id: '123',
@@ -86,6 +136,27 @@ const entities = [
     thing2Name: 'thing2Name'
   }
 ]
+
+const experiments = [
+  {
+    id: 'exp1',
+    numberParam: 123,
+    __typeName: 'ExperimentWithNumberParameter',
+    context: 'Android'
+  },
+  {
+    id: 'expx',
+    knownParamName: 'anotherValue',
+    __typeName: 'ExperimentWithStandardParameters',
+    context: 'Android'
+  },
+  {
+    id: 'exp2',
+    knownParamName: 'somevalue',
+    __typeName: 'ExperimentWithStandardParameters',
+    context: 'FunkyTown'
+  }
+];
 
 
 class BooksAPI extends RESTDataSource {
@@ -119,7 +190,27 @@ function sleep(ms) {
 }
 
 const resolvers = {
+  Mutation: {
+    createBook: (parent, {id}, {dataSources}) => {
+      return {
+        id: id,
+        title: "created book",
+        authorName: "createAuthorName",
+        authorId: "createAuthorId"
+      };
+    }
+  },
   Query: {
+    version: () => '0.1.2.3',
+    b1: async (_parent,_params,{dataSources}) => {
+      var booksResolverResult =  await dataSources.booksAPI.getBook('123');
+      return (booksResolverResult === undefined)? null: {id:'123'};
+    },
+    b2: async (_parent,_params,{dataSources}) => {
+      return null;
+      // var booksResolverResult =  await dataSources.booksAPI.getBook('456');
+      // return (booksResolverResult === undefined)? null: {id: '456'};
+    },
     aa: () => "aaa",
     bb: () => { throw "something went wrong"; },
     author: async (parent, {id}, {dataSources}) => {
@@ -141,11 +232,26 @@ const resolvers = {
       var booksResolverResult =  await dataSources.booksAPI.getBook(id);
       return (booksResolverResult === undefined)? null: {id};
     },
+    book2: async (parent, {id, other}, {dataSources}) => {
+      var booksResolverResult =  await dataSources.booksAPI.getBook(id);
+      return (booksResolverResult === undefined)? null: {id};
+    },
+    book3: async (parent, {other}, {dataSources}) => {
+      var booksResolverResult =  await dataSources.booksAPI.getBook('123');
+      return (booksResolverResult === undefined)? null: {id: '123'};
+    },
     viewer: () => {
       console.log(`> query.viewer`)
       return {};
     },
-    entities: () => entities
+    entities: () => entities,
+    experiments: (parent, {context}) =>  {
+      if (context) return experiments.filter(x => x.context === context);
+      return experiments;
+
+      const allLDresult = ldService.getExperiments(context);
+
+    }
   },
   Entity: {
     __resolveType(entity, context, info) {
@@ -223,14 +329,111 @@ const resolvers = {
       const book = await cxt.dataSources.booksAPI.getBook(id);
       console.log(`< book.authorDetails: ${id}`)
       return {id: book.authorId};
+    },
+    biblioEntry: async({id}, {fmt}, cxt, info) => {
+      console.log(`> book.biblioEntry: ${id}`)
+      const book = await cxt.dataSources.booksAPI.getBook(id);
+      console.log(`< book.biblioEntry: ${fmt}`)
+      return {id: id, entry: `Formatted as ${fmt}`}
+    },
+  },
+  Experiment: {
+    __resolveType: (obj, context, info) => {
+
+      let standardParams = getStandardParams(obj);
+
+      if (standardParams) {
+
+      }
+
+
+      return obj.__typeName;
     }
-    
   }
 };
+
+const visitor =   {
+    Field: {
+      enter(node) {
+        if (node?.name?.kind === 'Name') {
+          console.log(`enter: ${node.name.value}`);
+        }
+      },
+      leave(node) {
+        if (node?.name?.kind === 'Name') {
+          console.log(`leave: ${node.name.value}`);
+        }
+      }
+    }
+  };
+
+const getPaths = (result, paths) => ({
+    Field: {
+      enter(node) {
+        if (node?.name?.kind === 'Name') {
+          paths.push(node.name.value);
+          // console.log(`enter: ${node.name.value}`);
+        }
+      },
+      leave(node) {
+        if (node?.name?.kind === 'Name') {
+          const elems = paths.slice(-2);
+          result.push(elems);
+          console.log(`${elems[0]} -> ${elems[1]}`);
+          paths.pop();
+          // console.log(`leave: ${node.name.value}`);
+        }
+      }
+    }
+});
 
 const server = new ApolloServer({
   typeDefs,
   resolvers,
+  plugins: [
+    // {
+    //     async requestDidStart(x) {
+    //       if (x?.request?.operationName === 'IntrospectionQuery') return;
+
+    //       const query = x.request?.query;
+    //       if (!query) return;
+    //       const parsedQuery = parse(query);
+    //       console.log(JSON.stringify(parsedQuery, null, 2));
+
+    //       console.log('---');
+    //       const s = print(parsedQuery)
+    //       console.log(s);
+    //       console.log('---');
+
+
+    //       visit(parsedQuery, visitor);
+
+
+    //       const result = []
+    //       visit(parsedQuery, getPaths(result, ['query']));
+
+    //       const graphPaths = result.map(x => `  "${x[0]}" -> "${x[1]}"`).join('\n');
+    //       const graphContent = `digraph testGraph {\n${graphPaths}\n}`;
+    //       fs.writeFile('./.query-graph.txt', graphContent, err => {
+    //         if (err) {
+    //           console.error(err);
+    //         } else {
+    //           console.log(`wrote .query-graph.txt file containing digraph of the query`)
+    //           // file written successfully
+    //         }
+    //       });
+
+    //       exec(`cat ./.query-graph.txt | dot -Tpng > ./.query-graph.png| open ./.query-graph.png`);
+    //     }
+    //   }, 
+    {
+        async willSendResponse(x) {
+          console.log('---willSendResponse');
+          console.log(`willSendResponse: ${JSON.stringify(x)}`);
+          console.log('---willSendResponse');
+        }
+      }
+  ]
 });
 
 const { url } = await startStandaloneServer(server, {
