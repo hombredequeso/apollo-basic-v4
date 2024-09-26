@@ -92,6 +92,7 @@ const typeDefs = `#graphql
   type Query {
     version: String
     books(ids: [String!]!): [Book!]!
+    booksAll: [Book!]!
     book(id: String): Book
     book2(id: String, other: String): Book
     book3(other: String): Book
@@ -166,6 +167,7 @@ class BooksAPI extends RESTDataSource {
   loader = new DataLoader(async (ids) => {
     // Where the actual request(s) are made:
     const url = `book?ids=${ids.join(',')}`;
+    console.log(`loader making api request for: ${ids.join(',')}`);
     const bookList = await this.get(url);     
     var result = ids.map((id) => bookList.find((book) => book?.id === id));
     // result MUST be in same order and indexes as ids.
@@ -182,6 +184,29 @@ class BooksAPI extends RESTDataSource {
     console.log(`getBooks(${ids})`);
     // Go via the loader...
     return this.loader.loadMany(ids);
+  }
+
+  async getAllBooks() {
+    const ids = ["123", "456", "789"];
+    const url = `book?ids=${ids.join(',')}`;
+    console.log(`getAllBooks making api request for: ${ids.join(',')}`);
+    return this.get(url).then((resp) => {
+      var result = ids.map((id) => resp.find((book) => book?.id === id));
+      ids.forEach((id, index) => {
+        this.loader.prime(id, result[index]);
+      })
+      console.log(`getAllBooks > priming loader`);
+      return result;
+    });
+    // const bookList = await this.get(url);     
+    // var result = ids.map((id) => bookList.find((book) => book?.id === id));
+
+    // console.log(`getAllBooks > priming loader`)
+    // ids.forEach((id, index) => {
+    //   this.loader.prime(id, result[index]);
+    // })
+
+    // return result;
   }
 }
 
@@ -226,7 +251,14 @@ const resolvers = {
       var bookIds = booksFromApi.filter(x => x !== undefined ).map(x => ({id: x.id}));
       return bookIds;
     },
+    booksAll: async (parent, _args, {dataSources}) => {
+      console.log(`> query.booksAll`)
+      var booksFromApi =  await dataSources.booksAPI.getAllBooks();
+      var bookIds = booksFromApi.filter(x => x !== undefined ).map(x => ({id: x.id}));
+      return bookIds;
+    },
     book: async (parent, {id}, {dataSources}) => {
+      console.log(`> query.book (${id})`);
       // book is nullable, because the book with id may not exist. So getBook, to determine if it exists:
       // var booksResolverResult =  await sleep(1000).then(() => dataSources.booksAPI.getBook(id));
       var booksResolverResult =  await dataSources.booksAPI.getBook(id);
